@@ -52,8 +52,6 @@ The competition uses **Mean Average Precision @ 25 (MAP@25)** as the evaluation 
 
 Decide whether to use the entire dataset for training or split it into training and validation sets based on configuration.
 
-![workflow](./workflow.png)
-
 ### 2. Retriever Stage
 
 #### Model Selection and Configuration
@@ -158,6 +156,8 @@ In the Reranker stage, using the unsloth/Qwen2.5-32B-Instruct model and fine-tun
 The Reranker model played a critical role in improving the final MAP@25 score, with leaderboard results indicating good generalization in practical testing.
 
 ## **Solution Summary**
+
+![workflow](./workflow.png)
 
 - **Overview**: Participated in the development of a natural language processing model aimed at predicting the affinity between incorrect options (distractors) and potential misconceptions in mathematics multiple-choice questions. The project assisted education experts in efficiently labeling misconceptions, thereby improving teaching quality.
   
