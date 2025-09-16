@@ -150,8 +150,8 @@ These results indicate a high probability of including the true misconception wi
 In the Reranker stage, using the unsloth/Qwen2.5-32B-Instruct model and fine-tuning with SFTTrainer, the key metrics during training were:
 
 - **Training Loss**: 0.2672
-- **Kaggle Public Leaderboard (Public LB)**: 0.54x
-- **Kaggle Private Leaderboard (Private LB)**: 0.50x
+- **Kaggle Public Leaderboard (Public LB)**: 0.56
+- **Kaggle Private Leaderboard (Private LB)**: 0.50
 
 The Reranker model played a critical role in improving the final MAP@25 score, with leaderboard results indicating good generalization in practical testing.
 
@@ -180,7 +180,7 @@ The Reranker model played a critical role in improving the final MAP@25 score, w
 
 - **Achievements**:
   - Successfully developed and optimized a two-stage model (Retriever + Reranker) that significantly improved the accuracy and efficiency of misconception predictions.
-  - Achieved outstanding performance on both validation and hidden test sets, earning a silver medal (Top 5%) in the competition. Achieved Public LB score of 0.54x and Private LB score of 0.50x, showcasing strong competitiveness.
+  - Achieved outstanding performance on both validation and hidden test sets, earning a silver medal (Top 5%) in the competition. Achieved Public LB score of 0.56 and Private LB score of 0.50, showcasing strong competitiveness.
 
 ## Author
 
