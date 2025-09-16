@@ -52,6 +52,8 @@ The competition uses **Mean Average Precision @ 25 (MAP@25)** as the evaluation 
 
 Decide whether to use the entire dataset for training or split it into training and validation sets based on configuration.
 
+![workflow](./workflow.png)
+
 ### 2. Retriever Stage
 
 #### Model Selection and Configuration
