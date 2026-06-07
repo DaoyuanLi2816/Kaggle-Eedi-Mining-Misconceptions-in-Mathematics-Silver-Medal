@@ -182,6 +182,20 @@ The Reranker model played a critical role in improving the final MAP@25 score, w
   - Successfully developed and optimized a two-stage model (Retriever + Reranker) that significantly improved the accuracy and efficiency of misconception predictions.
   - Achieved outstanding performance on both validation and hidden test sets, earning a silver medal (Top 5%) in the competition. Achieved Public LB score of 0.56 and Private LB score of 0.50, showcasing strong competitiveness.
 
+## Repository Structure
+
+```text
+code/
+  stage1_train_retriever.py     # Stage 1: train the retriever (Qwen2.5-32B-Instruct + LoRA, contrastive loss)
+  stage1_train_retriever_v0.yaml
+  stage2_train_reranker.py       # Stage 2: train the reranker via SFT over the top-5 candidates
+  stage2_train_reranker_v0.yaml
+  loss_utils.py                  # Contrastive-loss helpers used by the retriever
+  utils.py                       # Shared utilities (logging, seeding, file helpers)
+  inference.ipynb                # End-to-end inference and submission generation
+```
+
+To reproduce: install dependencies with `pip install -r requirements.txt`, then run the retriever (`stage1_train_retriever.py`) and the reranker (`stage2_train_reranker.py`), and finally execute `inference.ipynb` to generate the submission.
 ## Author
 
 Daoyuan Li - [Kaggle Profile](https://www.kaggle.com/distiller)
