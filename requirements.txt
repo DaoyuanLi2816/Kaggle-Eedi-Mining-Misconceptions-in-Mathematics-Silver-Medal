@@ -1,0 +1,13 @@
+numpy
+pandas
+polars
+scikit-learn
+matplotlib
+torch
+transformers
+datasets
+accelerate
+peft
+bitsandbytes
+trl
+unsloth
