@@ -88,7 +88,7 @@ shutil.copy(args.cfg, f"{output_dir}/{args.cfg}")
 
 
 num_gpus = torch.cuda.device_count()
-LOGGER.info(f"可用的 GPU 数量: {num_gpus}")
+LOGGER.info(f"Number of available GPUs: {num_gpus}")
 
 if cfg.general.report_to == "wandb":
     import wandb
@@ -120,7 +120,7 @@ else:
     LOGGER.info(f"len(misconception_mapping_df): {len(misconception_mapping_df)}")
     LOGGER.info(f"")
 
-    # 定义常用的列名列表
+    # Define a list of commonly used column names
     common_col = [
         "QuestionId",
         "ConstructName",
@@ -130,14 +130,14 @@ else:
         "fold",
     ]
 
-    # 对训练集数据进行处理，转换为长表格式，并添加需要的列
+    # Process the training data, convert it to long format, and add the required columns
     long_df = (
         train_df
-        # 选择需要的列，包括common_col和所有的Answer[A-D]Text列
+        # Select the required columns, including common_col and all Answer[A-D]Text columns
         .select(
             pl.col(common_col + [f"Answer{alpha}Text" for alpha in ["A", "B", "C", "D"]])
         )
-        # 获取 CorrectAnswer 的 Text，创建新列 CorrectAnswerText
+        # Get the Text of CorrectAnswer and create a new column CorrectAnswerText
         .with_columns(
             pl.when(pl.col("CorrectAnswer") == "A").then(pl.col("AnswerAText"))
             .when(pl.col("CorrectAnswer") == "B").then(pl.col("AnswerBText"))
@@ -146,15 +146,15 @@ else:
             .otherwise(None)
             .alias("CorrectAnswerText")
         )
-        # 使用unpivot函数将宽表转换为长表，将Answer[A-D]Text列展开
+        # Use the unpivot function to convert the wide table to a long table, expanding the Answer[A-D]Text columns
         .unpivot(
-            index=common_col+["CorrectAnswerText"], # 保持这些列不变
-            variable_name="AnswerType", # 展开列的名称存储在新列AnswerType中
-            value_name="AnswerText",    # 展开列的值存储在新列AnswerText中
+            index=common_col+["CorrectAnswerText"], # keep these columns unchanged
+            variable_name="AnswerType", # the names of the unpivoted columns are stored in the new column AnswerType
+            value_name="AnswerText",    # the values of the unpivoted columns are stored in the new column AnswerText
         )
-        # 添加新列
+        # Add new columns
         .with_columns(
-            # 将ConstructName、SubjectName、QuestionText和AnswerText列拼接成一个字符串，存储在AllText列中
+            # Concatenate the ConstructName, SubjectName, QuestionText, and AnswerText columns into a single string stored in the AllText column
             pl.concat_str(
                 [
                     '### Construct\n' +  pl.col("ConstructName"),
@@ -165,50 +165,50 @@ else:
                 ],
                 separator="",
             ).alias("AllText"),
-            # 从AnswerType列中提取选项字母（A-D），存储在AnswerAlphabet列中
+            # Extract the option letter (A-D) from the AnswerType column and store it in the AnswerAlphabet column
             pl.col("AnswerType").str.extract(r"Answer([A-D])Text$").alias("AnswerAlphabet"),
         )
-        # 创建QuestionId_Answer列，将QuestionId和AnswerAlphabet拼接，形成唯一标识
+        # Create the QuestionId_Answer column by concatenating QuestionId and AnswerAlphabet to form a unique identifier
         .with_columns(
             pl.concat_str(
                 [pl.col("QuestionId"), pl.col("AnswerAlphabet")], separator="_"
             ).alias("QuestionId_Answer"),
         )
-        # 按照QuestionId_Answer进行排序
+        # Sort by QuestionId_Answer
         .sort("QuestionId_Answer")
     )
 
-    # 对误解映射数据进行处理，转换为长表格式，并添加需要的列
+    # Process the misconception mapping data, convert it to long format, and add the required columns
     misconception_mapping_df_long = (
         train_df.select(
-            # 选择需要的列，包括common_col和所有的Misconception[A-D]Id列
+            # Select the required columns, including common_col and all Misconception[A-D]Id columns
             pl.col(
                 common_col + [f"Misconception{alpha}Id" for alpha in ["A", "B", "C", "D"]]
             )
         )
-        # 使用unpivot函数将宽表转换为长表，将Misconception[A-D]Id列展开
+        # Use the unpivot function to convert the wide table to a long table, expanding the Misconception[A-D]Id columns
         .unpivot(
-            index=common_col,                # 保持这些列不变
-            variable_name="MisconceptionType", # 展开列的名称存储在MisconceptionType中
-            value_name="MisconceptionId",      # 展开列的值存储在MisconceptionId中
+            index=common_col,                # keep these columns unchanged
+            variable_name="MisconceptionType", # the names of the unpivoted columns are stored in MisconceptionType
+            value_name="MisconceptionId",      # the values of the unpivoted columns are stored in MisconceptionId
         )
-        # 从MisconceptionType列中提取选项字母（A-D），存储在AnswerAlphabet列中
+        # Extract the option letter (A-D) from the MisconceptionType column and store it in the AnswerAlphabet column
         .with_columns(
             pl.col("MisconceptionType")
             .str.extract(r"Misconception([A-D])Id$")
             .alias("AnswerAlphabet"),
         )
-        # 创建QuestionId_Answer列，将QuestionId和AnswerAlphabet拼接，形成唯一标识
+        # Create the QuestionId_Answer column by concatenating QuestionId and AnswerAlphabet to form a unique identifier
         .with_columns(
             pl.concat_str(
                 [pl.col("QuestionId"), pl.col("AnswerAlphabet")], separator="_"
             ).alias("QuestionId_Answer"),
         )
-        # 按照QuestionId_Answer进行排序
+        # Sort by QuestionId_Answer
         .sort("QuestionId_Answer")
-        # 选择需要的列
+        # Select the required columns
         .select(pl.col(["QuestionId_Answer", "MisconceptionId"]))
-        # 将MisconceptionId列的数据类型转换为Int64
+        # Convert the data type of the MisconceptionId column to Int64
         .with_columns(pl.col("MisconceptionId").cast(pl.Int64))
     )
 
@@ -226,12 +226,12 @@ else:
 
     long_df = long_df.to_pandas()
     LOGGER.info(f"{long_df.columns = }")
-    # 只选择 MisconceptionId 不为NaN 的数据
+    # Select only rows where MisconceptionId is not NaN
     long_df = long_df[~pd.isna(long_df["MisconceptionId"])].reset_index(drop=True)
     long_df["MisconceptionId"] = long_df["MisconceptionId"].astype(int)
     long_df = long_df[["QuestionId_Answer", "AllText", "MisconceptionId", "preds_all_mm_ids", "fold"]]
     LOGGER.info(f"long_df shape (after del nan): {long_df.shape}")
-    # 保存数据
+    # Save the data
     long_df.to_parquet(f"{comp_dir}/{cfg.data.long_df_pq}")
 
 
@@ -244,12 +244,12 @@ def adjust_passage_ids(row, pred_col, topk=25):
     else:
         predict_list = row[pred_col].tolist()
     
-    # 如果MisconceptionId在 preds_all_mm_ids 中，调整到最前面
+    # If MisconceptionId is in preds_all_mm_ids, move it to the front
     if misconception_id in predict_list:
         predict_list.remove(misconception_id)
         predict_list.insert(0, misconception_id)
     else:
-        # 如果不在，插入到最前面并去掉最后一个元素
+        # If it is not, insert it at the front and drop the last element
         predict_list.insert(0, misconception_id)
         predict_list.pop()
     
@@ -425,7 +425,7 @@ def valid_func(model, tokenizer, df, query_prefix, mis_prefix, mode="valid"):
     scores = scores.float()
     scores = scores.cpu().numpy()
     LOGGER.info(f"{scores.shape = }")
-    # 获取误解id的index,按照score排序
+    # Get the indices of the misconception ids, sorted by score
     preds_all_mm_ids = np.argsort(-scores, axis=1)
     preds_top25_mm_ids = preds_all_mm_ids[:, :25]
 
@@ -441,7 +441,7 @@ def encode_texts(model, tokenizer, texts, max_length):
     if type(texts[0]) == list:
         # shape: (batch_size, group_size) -> (batch_size * group_size)
         texts = [text for texts_ in texts for text in texts_]
-    # 进行分词
+    # Tokenize
     encodings = tokenizer(
         texts,
         padding=True,
@@ -453,7 +453,7 @@ def encode_texts(model, tokenizer, texts, max_length):
     attention_mask = encodings['attention_mask'].to(model.device)
 
     outputs = model(input_ids=input_ids, attention_mask=attention_mask)
-    # 获取嵌入表示
+    # Get the embedding representations
     # padding_side='left'
     embeddings = last_token_pool(outputs.last_hidden_state, attention_mask)
     # embeddings = outputs[0][:, -1, :]
@@ -502,14 +502,14 @@ def train_func(model, val_long_df):
             queries = batch['queries']
             passages = batch['passages']
 
-            # 编码文本 
+            # Encode the text 
             queries_embeddings = encode_texts(model, tokenizer, queries, max_length=cfg.model.query_max_length)
             passages_embeddings = encode_texts(model, tokenizer, passages, max_length=cfg.model.mis_max_length)
 
             queries_embeddings = F.normalize(queries_embeddings, p=2, dim=1)
             passages_embeddings = F.normalize(passages_embeddings, p=2, dim=1)
             # queries_embeddings.shape = [4, 2048]
-            # passages_embeddings.shape = [60, 2048] , 每个query对应15个passage, 其中第0个是正确答案, 其余14个是错误答案
+            # passages_embeddings.shape = [60, 2048]; each query corresponds to 15 passages, where index 0 is the correct answer and the remaining 14 are wrong answers
 
             local_scores, loss = compute_no_in_batch_neg_loss(queries_embeddings, passages_embeddings, temperature=cfg.training.temperature)            
             loss = loss / cfg.training.gradient_accumulation_steps
@@ -539,7 +539,7 @@ def train_func(model, val_long_df):
         log_str += " | ".join([f"R@{k}: {recall_scores[f'recall@{k}']:.4f}" for k in [1, 10, 25, 50, 100]])
         LOGGER.info(log_str)
 
-    # 画出损失曲线
+    # Plot the loss curve
     move_windows = 3
     ma_losses = pd.Series(losses).rolling(window=move_windows, min_periods=1).mean()
     plt.plot(ma_losses)
@@ -548,10 +548,10 @@ def train_func(model, val_long_df):
     plt.title('Training Loss')
     plt.savefig(f"{output_dir}/training_loss.png")
 
-    # 清空之前的plt
+    # Clear the previous plt figure
     plt.clf()
     
-    # 画出学习率曲线
+    # Plot the learning rate curve
     plt.plot(lrs)
     plt.xlabel('Step')
     plt.ylabel('Learning Rate')
