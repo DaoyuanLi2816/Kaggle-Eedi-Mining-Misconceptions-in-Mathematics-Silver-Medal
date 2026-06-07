@@ -117,7 +117,7 @@ import json
 def zip_files_in_directory(directory_path, zip_file_path, is_exclude_dirs=True):
     with zipfile.ZipFile(zip_file_path, 'w', zipfile.ZIP_DEFLATED) as zipf:
         for root, dirs, files in os.walk(directory_path):
-            # 仅在根目录下添加文件,不进入子目录
+            # Only add files in the root directory; do not descend into subdirectories
             if is_exclude_dirs:
                 if root == directory_path:
                     for file in files:
