@@ -2,25 +2,25 @@ import torch
 
 
 def get_local_score(q_reps, p_reps, all_scores):
-    """获取 queries 和 passages 的局部得分。
+    """Get the local scores between queries and passages.
 
     Args:
-        q_reps (torch.Tensor): queries 的表示。
-        p_reps (torch.Tensor): passages 的表示。
-        all_scores (torch.Tensor): 计算得到的所有 query-passage 的得分。
+        q_reps (torch.Tensor): Representations of the queries.
+        p_reps (torch.Tensor): Representations of the passages.
+        all_scores (torch.Tensor): All computed query-passage scores.
 
     Returns:
-        torch.Tensor: 用于计算损失的局部得分。
+        torch.Tensor: Local scores used for loss computation.
     """
-    group_size = p_reps.size(0) // q_reps.size(0) # 每个 query 对应的 passages 数量
-    indices = torch.arange(0, q_reps.size(0), device=q_reps.device) * group_size # 每个 query 在 all_scores 中的索引
+    group_size = p_reps.size(0) // q_reps.size(0) # Number of passages per query
+    indices = torch.arange(0, q_reps.size(0), device=q_reps.device) * group_size # Index of each query within all_scores
     specific_scores = []
     for i in range(group_size):
-        # 从 all_scores 中提取每个 query 对应的第 i 个 passage 的得分
+        # Extract the score of the i-th passage for each query from all_scores
         specific_scores.append(
             all_scores[torch.arange(q_reps.size(0), device=q_reps.device), indices + i] # (batch_size, group_size)
         )
-    # 将所有特定得分堆叠在一起，并调整形状为 (batch_size, group_size)
+    # Stack all the selected scores together and reshape to (batch_size, group_size)
     return torch.stack(specific_scores, dim=1).view(q_reps.size(0), -1)
 
 
@@ -28,14 +28,14 @@ def get_local_score(q_reps, p_reps, all_scores):
 
 
 def _compute_similarity(q_reps, p_reps):
-    """使用内积计算 query 和 passage 表示之间的相似度。
+    """Compute the similarity between the query and passage representations using the inner product.
 
     Args:
-        q_reps (torch.Tensor): queries 的表示。
-        p_reps (torch.Tensor): passages 的表示。
+        q_reps (torch.Tensor): Representations of the queries.
+        p_reps (torch.Tensor): Representations of the passages.
 
     Returns:
-        torch.Tensor: 计算得到的相似度矩阵。
+        torch.Tensor: The computed similarity matrix.
     """
     if len(p_reps.size()) == 2:
         return torch.matmul(q_reps, p_reps.transpose(0, 1))
@@ -43,15 +43,15 @@ def _compute_similarity(q_reps, p_reps):
 
 
 def compute_score(q_reps, p_reps, temperature):
-    """计算 queries 和 passages 之间的得分。
+    """Compute the scores between queries and passages.
 
     Args:
-        q_reps (torch.Tensor): queries 的表示。
-        p_reps (torch.Tensor): passages 的表示。
-        temperature (float): 温度参数，用于调整得分。
+        q_reps (torch.Tensor): Representations of the queries.
+        p_reps (torch.Tensor): Representations of the passages.
+        temperature (float): Temperature parameter used to scale the scores.
 
     Returns:
-        torch.Tensor: 调整后的得分。
+        torch.Tensor: The scaled scores.
     """
     scores = _compute_similarity(q_reps, p_reps) / temperature  # (batch_size, group_size)
     scores = scores.view(q_reps.size(0), -1)  # (batch_size, group_size)
@@ -59,15 +59,15 @@ def compute_score(q_reps, p_reps, temperature):
 
 
 def compute_local_score(q_reps, p_reps, temperature):
-    """计算 queries 和 passages 的局部得分。
+    """Compute the local scores between queries and passages.
 
     Args:
-        q_reps (torch.Tensor): queries 的表示。
-        p_reps (torch.Tensor): passages 的表示。
-        temperature (float): 温度参数，用于调整得分。
+        q_reps (torch.Tensor): Representations of the queries.
+        p_reps (torch.Tensor): Representations of the passages.
+        temperature (float): Temperature parameter used to scale the scores.
 
     Returns:
-        torch.Tensor: 用于计算损失的局部得分。
+        torch.Tensor: Local scores used for loss computation.
     """
     all_scores = compute_score(q_reps, p_reps, temperature)
 
@@ -77,14 +77,14 @@ def compute_local_score(q_reps, p_reps, temperature):
 
 
 def compute_loss(scores, target):
-    """使用交叉熵计算损失。
+    """Compute the loss using cross-entropy.
 
     Args:
-        scores (torch.Tensor): 计算得到的得分。
-        target (torch.Tensor): 目标值。
+        scores (torch.Tensor): The computed scores.
+        target (torch.Tensor): The target values.
 
     Returns:
-        torch.Tensor: 计算得到的交叉熵损失。
+        torch.Tensor: The computed cross-entropy loss.
     """
     cross_entropy = torch.nn.CrossEntropyLoss(reduction='mean')
     return cross_entropy(scores, target)
@@ -92,15 +92,15 @@ def compute_loss(scores, target):
 
 def compute_no_in_batch_neg_loss(q_reps, p_reps, temperature):
     """
-    在不使用批内负样本和跨设备负样本的情况下计算损失。
+    Compute the loss without using in-batch negatives or cross-device negatives.
     
     Args:
-        q_reps (torch.Tensor): queries 的表示，形状为 (batch_size, dim)。
-        p_reps (torch.Tensor): passages 的表示，形状为 (batch_size * group_size, dim)。
-        temperature (float): 温度参数，用于调整得分。
+        q_reps (torch.Tensor): Representations of the queries, with shape (batch_size, dim).
+        p_reps (torch.Tensor): Representations of the passages, with shape (batch_size * group_size, dim).
+        temperature (float): Temperature parameter used to scale the scores.
 
     Returns:
-        Tuple[torch.Tensor, torch.Tensor]: 返回局部得分和计算得到的损失。
+        Tuple[torch.Tensor, torch.Tensor]: Returns the local scores and the computed loss.
     """
     local_scores = compute_local_score(q_reps, p_reps, temperature)   # (batch_size, group_size)
     local_targets = torch.zeros(local_scores.size(0), device=local_scores.device, dtype=torch.long)  # (batch_size)
