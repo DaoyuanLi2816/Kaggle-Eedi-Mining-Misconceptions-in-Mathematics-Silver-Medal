@@ -93,7 +93,7 @@ shutil.copy(args.cfg, f"{output_dir}/{args.cfg}")
 
 
 num_gpus = torch.cuda.device_count()
-LOGGER.info(f"可用的 GPU 数量: {num_gpus}")
+LOGGER.info(f"Number of available GPUs: {num_gpus}")
 
 if cfg.general.report_to == "wandb":
     import wandb
@@ -119,32 +119,32 @@ valid_oof_csv = pd.read_csv(f"{cfg.data.oof_dir}/oof_df.csv")[["QuestionId_Answe
 def data_preprocess(df, is_train):
     df["preds_all_mm_ids"] = df["preds_all_mm_ids"].apply(lambda x: ast.literal_eval(x))
     df["top_mm_ids"] = df["preds_all_mm_ids"].apply(lambda x: x[:5])
-    # 如果 MisconceptionId 不存在于 top_mm_ids 中, 则将MisconceptionId替换列表中最后一个值
+    # If MisconceptionId is not present in top_mm_ids, replace the last value in the list with MisconceptionId
     df["top_mm_ids"] = df.apply(
         lambda row: row["top_mm_ids"] if row["MisconceptionId"] in row["top_mm_ids"] else row["top_mm_ids"][:-1] + [row["MisconceptionId"]],
         axis=1
     )
-    # 对 top_mm_ids 的顺序洗牌
+    # Shuffle the order of top_mm_ids
     df["top_mm_ids"] = df["top_mm_ids"].apply(lambda x: np.random.permutation(x).tolist())
 
-    # 新建一列 gt_idx, 表示MisconceptionId在top_mm_ids中的位置
+    # Create a new column gt_idx indicating the position of MisconceptionId within top_mm_ids
     df["gt_idx"] = df.apply(lambda row: row["top_mm_ids"].index(row["MisconceptionId"]), axis=1)
     i2l_dict = {0: "A", 1: "B", 2: "C", 3:"D", 4:"E"}
     df["gt"] = df["gt_idx"].apply(lambda x: i2l_dict[x])
 
-    # 新建一列 top_mm_texts, 也是一个列表, 其中的值是top_mm_ids对应于misconception_dict中的value
+    # Create a new column top_mm_texts (also a list) whose values are the misconception_dict values corresponding to top_mm_ids
     df["top_mm_texts"] = df["top_mm_ids"].apply(lambda ids: [misconception_dict[id] for id in ids])
 
-    # 在 AllText 后面加上新"\n\nHere are 5 possible candidates for misconception:\n"
+    # Append to AllText the new"\n\nHere are 5 possible candidates for misconception:\n"
     df["AllText"] = df["AllText"] + "\n\nHere are 5 possible candidates for misconception:\n"
 
-    # 在 AllText 后面加上5个候选项,候选项来自top_mm_texts, 然后要这样的格式 "A. candidate0\nB. candidate1\nC. candidate2\nD. candidate3\nE. candidate4"
+    # Append the 5 candidates (from top_mm_texts) to AllText in the following format "A. candidate0\nB. candidate1\nC. candidate2\nD. candidate3\nE. candidate4"
     df["AllText"] = df.apply(
         lambda row: row["AllText"] + "\n".join([f"{chr(65+i)}. {candidate}" for i, candidate in enumerate(row["top_mm_texts"])]),
         axis=1
     )
 
-    # 在 AllText 后面加上新"\nWhich misconception candidate best explains what led to the wrong answer? (Please directly answer A, B, C, D or E)"
+    # Append to AllText the new"\nWhich misconception candidate best explains what led to the wrong answer? (Please directly answer A, B, C, D or E)"
     df["AllText"] = df["AllText"] + "\nWhich misconception candidate best explains what led to the wrong answer? (Please directly answer A, B, C, D or E)\nAnswer:"
 
     return df
@@ -177,7 +177,7 @@ Given a math question and its incorrect answer, identify the underlying misconce
 {AnswerLetter}<|im_end|>
 """
 
-# 定义函数，用于将每一行数据填充到模板中
+# Define a function that fills each row of data into the template
 def apply_template(row):
     instruction_text =  PROMPT.format(
         AllText=row["AllText"],
@@ -243,18 +243,18 @@ trainer = SFTTrainer(
     ),
 )
 
-# 只训练response部分
+# Train only the response part
 trainer = train_on_responses_only(
     trainer,
     instruction_part = "<|im_start|>user\n",
     response_part = "<|im_start|>assistant\n",
 )
 
-# 开始训练
+# Start training
 LOGGER.info("start training...")
 trainer_stats = trainer.train()
 
-# 保存adapt模型
+# Save the adapter model
 os.makedirs("lora_model", exist_ok=True)
 model.save_pretrained("lora_model")
 tokenizer.save_pretrained("lora_model")
@@ -265,6 +265,6 @@ LOGGER.info("finish training...")
 # model.save_pretrained_merged("model_4bit", tokenizer, save_method = "merged_4bit_forced",)
 # LOGGER.info("finish saving 4bit model...")
 
-# 记录 loss
+# Log the loss
 LOGGER.info(f"Training loss: {trainer_stats.training_loss}")
 write_to_summary_log(summary_log_path,  f"Training loss: {trainer_stats.training_loss}")
