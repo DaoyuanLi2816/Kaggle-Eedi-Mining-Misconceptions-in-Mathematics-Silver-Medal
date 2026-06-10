@@ -1,0 +1,64 @@
+[build-system]
+requires = ["setuptools>=64"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "labelbank"
+version = "0.1.0"
+description = "Retrieve + rerank over a closed label bank: LLM bi-encoders with self-mined hard negatives and a generative listwise reranker"
+readme = "README.md"
+requires-python = ">=3.9"
+license = { text = "MIT" }
+authors = [{ name = "Daoyuan Li", email = "lidaoyuan2816@gmail.com" }]
+keywords = [
+    "dense-retrieval",
+    "hard-negative-mining",
+    "reranking",
+    "information-retrieval",
+    "contrastive-learning",
+    "llm",
+]
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Science/Research",
+    "License :: OSI Approved :: MIT License",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Operating System :: OS Independent",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+dependencies = [
+    "numpy",
+    "pandas",
+    "pyyaml",
+]
+
+[project.optional-dependencies]
+# Retrieval: embed queries/labels with a HF backbone and search the bank.
+retrieve = ["torch", "transformers>=4.46", "peft", "accelerate"]
+# Reranking: train/serve the generative listwise reranker.
+rerank = ["torch", "transformers>=4.46", "peft", "trl>=0.12", "datasets", "accelerate"]
+# Everything needed to train both stages.
+train = [
+    "torch",
+    "transformers>=4.46",
+    "peft",
+    "trl>=0.12",
+    "datasets",
+    "accelerate",
+]
+test = ["pytest", "torch", "polars", "pyarrow"]
+
+[project.urls]
+Homepage = "https://github.com/DaoyuanLi2816/labelbank"
+Issues = "https://github.com/DaoyuanLi2816/labelbank/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

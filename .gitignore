@@ -10,4 +10,9 @@ wandb/
 venv/
 .DS_Store
 .idea/
-.vscode/
+.vscode/__pycache__/
+*.pyc
+.pytest_cache/
+*.egg-info/
+dist/
+build/

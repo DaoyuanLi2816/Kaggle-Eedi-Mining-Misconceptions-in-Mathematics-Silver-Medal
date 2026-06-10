@@ -1,0 +1,26 @@
+# Small retriever on one consumer GPU (Qwen2.5-0.5B-Instruct, ungated).
+# Start here; swap model_name up when you have the hardware.
+
+model:
+  model_name: "Qwen/Qwen2.5-0.5B-Instruct"
+  query_max_length: 512
+  label_max_length: 64
+  load_in_4bit: false
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.0
+    bias: "none"
+
+training:
+  epochs: 1
+  batch_size: 8
+  gradient_accumulation_steps: 2
+  lr: 1.0e-4
+  temperature: 0.01
+  one_cycle_pct_start: 0.1
+  seed: 42
+
+mining:
+  pool_size: 25      # gold + 24 hard negatives per query
+  rounds: 1          # retrain once on self-mined pools

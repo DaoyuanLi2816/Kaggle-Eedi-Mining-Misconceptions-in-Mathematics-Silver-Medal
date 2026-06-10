@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="880" height="180" viewBox="0 0 880 180" role="img" aria-label="labelbank — retrieve and rerank over a closed label bank">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0" stop-color="#0f172a"/>
+      <stop offset="1" stop-color="#1e293b"/>
+    </linearGradient>
+    <linearGradient id="accent" x1="0" y1="0" x2="1" y2="0">
+      <stop offset="0" stop-color="#38bdf8"/>
+      <stop offset="1" stop-color="#a78bfa"/>
+    </linearGradient>
+  </defs>
+  <rect width="880" height="180" rx="14" fill="url(#bg)"/>
+
+  <!-- bank: stacked label cards, one highlighted -->
+  <g transform="translate(52,38)">
+    <rect x="14" y="14" width="120" height="22" rx="5" fill="#334155"/>
+    <rect x="10" y="40" width="120" height="22" rx="5" fill="#334155"/>
+    <rect x="6"  y="66" width="120" height="22" rx="5" fill="url(#accent)"/>
+    <rect x="10" y="92" width="120" height="22" rx="5" fill="#334155"/>
+    <circle cx="166" cy="77" r="4" fill="#38bdf8"/>
+    <path d="M 134 77 L 162 77" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+  </g>
+
+  <text x="248" y="84" font-family="ui-monospace, SFMono-Regular, Menlo, monospace" font-size="46" font-weight="700" fill="#f8fafc">labelbank</text>
+  <text x="250" y="118" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" fill="#cbd5e1">retrieve + rerank over a closed label bank — LLM bi-encoders,</text>
+  <text x="250" y="140" font-family="-apple-system, 'Segoe UI', Helvetica, Arial, sans-serif" font-size="17" fill="#cbd5e1">self-mined hard negatives, generative listwise reranking</text>
+
+  <g transform="translate(660,30)">
+    <rect width="170" height="26" rx="13" fill="#c0c0c0" opacity="0.92"/>
+    <text x="85" y="17.5" text-anchor="middle" font-family="-apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1e293b">Kaggle Silver · Eedi</text>
+  </g>
+</svg>

@@ -1,0 +1,36 @@
+# The competition configuration (Eedi silver medal): Qwen2.5-32B-Instruct,
+# 4-bit NF4 + LoRA, mined pools of 50. Multi-GPU recommended.
+# Original scripts preserved verbatim under competition/.
+
+model:
+  model_name: "Qwen/Qwen2.5-32B-Instruct"
+  query_max_length: 512
+  label_max_length: 64
+  load_in_4bit: true
+  lora:
+    r: 16
+    alpha: 32
+    dropout: 0.0
+    bias: "none"
+    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+
+training:
+  epochs: 1
+  batch_size: 4
+  gradient_accumulation_steps: 2
+  lr: 1.0e-4
+  temperature: 0.01
+  one_cycle_pct_start: 0.1
+  seed: 42
+
+mining:
+  pool_size: 50
+  rounds: 1
+
+query_prefix: "<instruct>Given a math question and its incorrect answer, identify the underlying misconception that led to the mistake.\n<query>"
+
+reranker:
+  model_name: "Qwen/Qwen2.5-32B-Instruct"
+  top_k: 5
+  max_seq_length: 1024
+  epochs: 1

@@ -1,203 +1,147 @@
-# Eedi - Mining Misconceptions in Mathematics Solution
+<p align="center">
+  <img src="https://raw.githubusercontent.com/DaoyuanLi2816/labelbank/main/docs/banner.svg" alt="labelbank — retrieve and rerank over a closed label bank: LLM bi-encoders, self-mined hard negatives, generative listwise reranking. Kaggle Silver, Eedi." width="880">
+</p>
 
-This solution was developed for the [Eedi - Mining Misconceptions in Mathematics](https://www.kaggle.com/c/eedi-mining-misconceptions-in-mathematics) competition on Kaggle, where participants were challenged to create models to predict the affinity between incorrect options (distractors) and potential misconceptions in mathematics multiple-choice questions. The task required building a model capable of recommending candidate misconceptions for each incorrect option to assist education experts in more efficiently and consistently labeling misconceptions.
+<div align="center">
 
-Our team achieved a [Silver Medal](https://www.kaggle.com/certification/competitions/distiller/eedi-mining-misconceptions-in-mathematics), with a public score of **0.54** and a private score of **0.50**. Our solution showcased the potential for using machine learning and natural language processing models, such as Qwen2.5-32B-Instruct combined with LoRA fine-tuning, to improve the efficiency and accuracy of misconception labeling in education, contributing to advancements in educational AI. 🥈
+[![CI](https://github.com/DaoyuanLi2816/labelbank/actions/workflows/ci.yml/badge.svg)](https://github.com/DaoyuanLi2816/labelbank/actions)
+[![PyPI](https://img.shields.io/pypi/v/labelbank)](https://pypi.org/project/labelbank/)
+![Python](https://img.shields.io/badge/python-3.9%2B-blue)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
+[![Kaggle Silver](https://img.shields.io/badge/Kaggle-Silver%20%C2%B7%20Top%205%25-C0C0C0)](https://www.kaggle.com/certification/competitions/distiller/eedi-mining-misconceptions-in-mathematics)
 
-![Daoyuan Li - Eedi - Mining Misconceptions in Mathematics](./Certificate.png)
+</div>
 
-## Competition Overview
+`labelbank` is the generalized core of a **silver-medal (top 5%) solution** to Kaggle's [Eedi — Mining Misconceptions in Mathematics](https://www.kaggle.com/c/eedi-mining-misconceptions-in-mathematics), extracted into a small, tested library you can run on **your own label catalog with any Hugging Face backbone**. The exact competition artifacts are preserved untouched in [`competition/`](competition/README.md), and golden tests pin the library's default behavior to the medal-winning code **byte for byte**.
 
-### Competition Introduction
+Use it when your problem looks like this: *given a piece of free text, find the matching entry in a fixed catalog of labels* — a few hundred to a few tens of thousands of entries that all look frustratingly similar. Support tickets → known-issue KB, error logs → root-cause catalog, symptoms → diagnosis codes, content → policy categories, student mistakes → misconception taxonomies (the original task: 2,587 fine-grained math misconceptions).
 
-This competition aims to develop a machine-learning-based natural language processing (NLP) model that can accurately predict the affinity between incorrect options (distractors) and potential misconceptions in mathematics multiple-choice questions. The model will recommend candidate misconceptions for each incorrect option, assisting education experts in labeling misconceptions more efficiently and consistently.
+## Why not just an off-the-shelf embedding model?
 
-### Competition Background
+Generic embedders retrieve "something related". In a fine-grained bank, related isn't enough — *"ignores order of operations"* and *"evaluates left to right"* are nearly identical sentences and different labels. Three design choices close that gap, and they are exactly what this library packages:
 
-In mathematics education, diagnostic questions (DQs) typically contain one correct answer and three carefully designed distractors, each corresponding to a specific student misconception. For example, if a student selects the incorrect option "13," it might indicate a misconception of "ignoring the order of operations and calculating from left to right sequentially."
+**1. No in-batch negatives — mined pools instead.**
+Standard contrastive recipes use other in-batch examples as negatives. In a closed bank that's poison: another query's positive is often a *sibling label* of your gold (a false negative), and random negatives are trivially easy. `labelbank` trains on explicit per-query pools — `[gold, hard negatives…]` — with cross-entropy over the group ([`no_in_batch_neg_loss`](src/labelbank/losses.py), temperature 0.01).
 
-Manually labeling misconceptions for each distractor is time-consuming and prone to inconsistency. Furthermore, new misconceptions may emerge as knowledge areas expand. Therefore, developing a model that can automatically recommend misconceptions is crucial.
+**2. The hard negatives come from the model itself.**
+Train round *N* → rank the whole bank for every training query → take each query's own top-k as round *N+1*'s negative pool, gold forced to the front ([`gold_first_pool`](src/labelbank/mining.py)). A self-bootstrapping curriculum: every round, the negatives are precisely the mistakes the current model still makes. This loop was decisive for the medal.
 
-## Solution Overview
-
-This solution comprises two stages:
-
-1. **Retriever Stage**: Utilize a retrieval model to recommend candidate misconceptions for each incorrect option.
-2. **Reranker Stage**: Re-rank the top 5 candidate misconceptions recommended by the Retriever to improve recommendation accuracy.
-
-The competition uses **Mean Average Precision @ 25 (MAP@25)** as the evaluation metric, which calculates the average precision of predicted misconception lists for each sample and then averages them across all samples.
-
-## Detailed Solution
-
-### 1. Data Preprocessing
-
-#### Data Reading and Transformation
-
-1. **Data Reading**:
-   - Use the `polars` library to read the training set and misconception mapping file.
-   - Convert wide-format data into long-format for easier processing.
-
-2. **Generate Long-Format Data**:
-   - Expand the text of each question's four options (A, B, C, D) to generate `QuestionId_Answer` and corresponding `AllText`.
-   - `AllText` includes `ConstructName`, `SubjectName`, `QuestionText`, `CorrectAnswerText`, and `WrongAnswerText`, concatenated into a unified text field for contextual understanding by the model.
-   - Map each distractor to its misconception ID and name to create long-format data.
-
-3. **Merge Prediction Results**:
-   - Read Retriever stage predictions (`oof_df.csv`) and merge predicted misconception ID lists into long-format data.
-
-4. **Adjust Misconception ID Order**:
-   - Ensure the true misconception ID is at the front of the predicted list; if not present, insert it at the top and truncate the list.
-
-#### Data Splitting
-
-Decide whether to use the entire dataset for training or split it into training and validation sets based on configuration.
-
-### 2. Retriever Stage
-
-#### Model Selection and Configuration
-
-1. **Model Selection**:
-   - Use `Qwen2.5-32B-Instruct` as the base model.
-
-2. **LoRA Configuration**:
-   - Fine-tune the model using LoRA (Low-Rank Adaptation) to reduce parameter count and training time.
-   - Configure parameters such as `r=16`, `alpha=32`, `dropout=0.00`, targeting modules like `q_proj`, `k_proj`, `v_proj`, `o_proj`, `gate_proj`, `up_proj`, and `down_proj`.
-
-3. **Quantization Configuration**:
-   - Use 4-bit quantization (`BitsAndBytesConfig`) to reduce memory usage and improve training efficiency.
-
-#### Dataset and Data Loading
-
-- Define a `QPDataset` class to input question text and corresponding candidate misconception text as queries and paragraphs.
-- Use `DataLoader` for batch loading, with a custom `collate_fn` function to handle data formatting.
-
-#### Model Training
-
-1. **Optimizer and Scheduler**:
-   - Use the `AdamW` optimizer with a learning rate of `0.0001`.
-   - Adopt a `OneCycleLR` scheduler with `max_lr=0.0001`, calculating `total_steps` based on training rounds and batch size.
-
-2. **Training Loop**:
-   - Encode query and candidate misconception text for each batch, compute embeddings, and normalize them.
-   - Calculate contrastive loss (`compute_no_in_batch_neg_loss`), perform backpropagation, and update gradients.
-
-3. **Validation and Evaluation**:
-   - Evaluate the model on the validation set after each training epoch, calculating MAP@25 and various Recall metrics (R@1, R@10, R@25, R@50, R@100).
-   - Record and visualize training loss and learning rate curves.
-
-4. **Model Saving**:
-   - Save the fine-tuned model and tokenizer after training.
-
-### 3. Reranker Stage
-
-#### Model Selection and Configuration
-
-1. **Model Selection**:
-   - Use `unsloth/Qwen2.5-32B-Instruct` as the base model and FastLanguageModel for efficient inference.
-
-2. **LoRA Configuration**:
-   - Similar to the Retriever stage, fine-tune the model using LoRA, targeting the same modules.
-
-#### Data Preprocessing
-
-1. **Read Retriever Stage Output**:
-   - Load OOF (Out-Of-Fold) predictions from the training and validation stages.
-
-2. **Data Augmentation**:
-   - Ensure the true misconception ID is within the top 5 candidates for each sample; if not, add it and shuffle the order.
-   - Convert candidate misconceptions into their names and fill them into the question text to create new input formats.
-
-3. **Template Filling**:
-   - Use predefined templates to combine question text and candidate misconceptions into instruction formats for training.
-
-#### Model Training
-
-1. **Training Dataset**:
-   - Convert preprocessed training data into Hugging Face `Dataset` format.
-
-2. **Trainer Configuration**:
-   - Use `SFTTrainer` for supervised fine-tuning, setting parameters like batch size, learning rate, optimizer type (`adamw_8bit`), weight decay, and learning rate scheduler.
-
-3. **Training Process**:
-   - Train only the response part (i.e., model-generated misconceptions) while keeping the instruction part fixed.
-   - Use the `train_on_responses_only` function to optimize response generation.
-
-4. **Model Saving**:
-   - Save the fine-tuned LoRA model and tokenizer for later inference and deployment.
-
-### 4. Evaluation and Results
-
-#### Evaluation Metrics
-
-- **Mean Average Precision @ 25 (MAP@25)**: Calculate the average precision of the top 25 predictions for each sample, then average across all samples.
-- **Recall@K (R@K)**: Calculate the proportion of true misconceptions in the top K predictions, with common K values including 1, 10, 25, 50, and 100.
-
-#### Retriever Results Analysis
-
-Using the Qwen2.5-32B-Instruct model with LoRA fine-tuning, the Retriever stage achieved the following results:
-
-- **MAP@25**: 0.4238
-- **Recall@1**: 0.3017
-- **Recall@10**: 0.6906
-- **Recall@25**: 0.8126
-- **Recall@50**: 0.8978
-- **Recall@100**: 0.9391
-
-These results indicate a high probability of including the true misconception within the top 25 predictions, with Recall@50 reaching 89.78%, demonstrating the model's effectiveness across a broader range.
-
-#### Reranker Results Analysis
-
-In the Reranker stage, using the unsloth/Qwen2.5-32B-Instruct model and fine-tuning with SFTTrainer, the key metrics during training were:
-
-- **Training Loss**: 0.2672
-- **Kaggle Public Leaderboard (Public LB)**: 0.56
-- **Kaggle Private Leaderboard (Private LB)**: 0.50
-
-The Reranker model played a critical role in improving the final MAP@25 score, with leaderboard results indicating good generalization in practical testing.
-
-## **Solution Summary**
-
-![workflow](./workflow.png)
-
-- **Overview**: Participated in the development of a natural language processing model aimed at predicting the affinity between incorrect options (distractors) and potential misconceptions in mathematics multiple-choice questions. The project assisted education experts in efficiently labeling misconceptions, thereby improving teaching quality.
-  
-- **Responsibilities and Contributions**:
-  - **Data Preprocessing**:
-    - Utilized the `polars` library to read and transform training dataset.
-    - Converted wide-format data to long-format and integrated question text with option text to generate unified input features.
-  
-  - **Model Development**:
-    - **Retriever Stage**:
-      - Used `Qwen2.5-32B-Instruct` as the base model, fine-tuned with LoRA (Low-Rank Adaptation) to optimize model parameters for the specific task.
-      - Implemented 4-bit quantization (`BitsAndBytesConfig`) to enhance training efficiency and reduce memory usage.
-      - Trained the model using contrastive loss functions to improve the accuracy of candidate misconception retrieval.
-    - **Reranker Stage**:
-      - Leveraged the `unsloth/Qwen2.5-32B-Instruct` model for efficient inference and further optimized misconception ranking through supervised fine-tuning (SFTTrainer).
-  
-  - **Evaluation and Optimization**:
-    - Used Mean Average Precision @ 25 (MAP@25) as the primary evaluation metric, complemented by Recall@K metrics (K=1,10,25,50,100) for comprehensive performance assessment.
-    - Achieved MAP@25 of 0.4238 and Recall@50 of 89.78% in the Retriever stage. Further optimization in the Reranker stage improved leaderboard scores, demonstrating strong generalization capabilities.
-
-- **Achievements**:
-  - Successfully developed and optimized a two-stage model (Retriever + Reranker) that significantly improved the accuracy and efficiency of misconception predictions.
-  - Achieved outstanding performance on both validation and hidden test sets, earning a silver medal (Top 5%) in the competition. Achieved Public LB score of 0.56 and Private LB score of 0.50, showcasing strong competitiveness.
-
-## Repository Structure
-
-```text
-code/
-  stage1_train_retriever.py     # Stage 1: train the retriever (Qwen2.5-32B-Instruct + LoRA, contrastive loss)
-  stage1_train_retriever_v0.yaml
-  stage2_train_reranker.py       # Stage 2: train the reranker via SFT over the top-5 candidates
-  stage2_train_reranker_v0.yaml
-  loss_utils.py                  # Contrastive-loss helpers used by the retriever
-  utils.py                       # Shared utilities (logging, seeding, file helpers)
-  inference.ipynb                # End-to-end inference and submission generation
+```mermaid
+flowchart LR
+    T["labeled pairs<br>(text → label id)"] --> R1["bi-encoder round N<br>(LoRA fine-tune)"]
+    R1 -- "rank full bank<br>per training query" --> M["top-k pools<br>gold first"]
+    M -- "hard negatives" --> R2["bi-encoder round N+1"]
+    R2 -- "top-k candidates" --> RR["generative listwise reranker<br>(letters A–E, completion-only SFT)"]
+    RR --> O["final ranking"]
 ```
 
-To reproduce: install dependencies with `pip install -r requirements.txt`, then run the retriever (`stage1_train_retriever.py`) and the reranker (`stage2_train_reranker.py`), and finally execute `inference.ipynb` to generate the submission.
+**3. A generative listwise reranker with no position prior.**
+The retriever's top-k candidates are inlined into one prompt as lettered options; a causal LLM is fine-tuned (completion-only) to answer the letter. The gold's position is **shuffled at training time** — the reranker must judge content, not slot — and at inference the next-token logits over `A…E` re-order the candidates ([`ListwiseReranker`](src/labelbank/reranker.py)).
+
+## Install
+
+```bash
+pip install labelbank              # core: metrics, mining, formatting, data (no torch)
+pip install labelbank[retrieve]    # + bi-encoder retrieval (torch, transformers, peft)
+pip install labelbank[train]       # + both training stages (adds trl, datasets)
+```
+
+## 60 seconds
+
+```python
+from labelbank import LabelBank, BiEncoderRetriever, gold_first_pool
+
+# 1. Your closed catalog, and some labeled (text -> label id) pairs.
+bank = LabelBank.from_csv("catalog.csv", id_col="LabelId", text_col="LabelText")
+queries = ["my failing log line…", "another report…"]   # free text
+gold_ids = [1042, 17]                                    # matching catalog ids
+
+# 2. Retrieve with any HF backbone (last-token pooling + L2 norm).
+retriever = BiEncoderRetriever.from_pretrained(
+    "Qwen/Qwen2.5-0.5B-Instruct", trainable=True,
+    query_prefix="<instruct>Match the text to the best catalog entry.\n<query>",
+)
+ranked = retriever.retrieve(queries, bank, top_k=25)
+
+# 3. Mine hard negatives from the model's own rankings, then retrain.
+pools = [gold_first_pool(r, g, top_k=25) for r, g in zip(ranked, gold_ids)]
+
+from labelbank import RetrieverTrainConfig, train_retriever
+train_retriever(retriever, queries, [bank.texts_of(p) for p in pools],
+                RetrieverTrainConfig(epochs=1, temperature=0.01))
+
+# 4. Evaluate against the whole bank.
+metrics = retriever.evaluate(queries, gold_ids, bank)   # map@25 + recall@{1,10,25,50,100}
+```
+
+Rerank the top-5 with a generative judge:
+
+```python
+from labelbank import build_training_rows, ListwiseReranker
+
+rows = build_training_rows(queries, candidate_texts, gold_texts, k=5)   # gold position shuffled
+reranker = ListwiseReranker.from_pretrained("Qwen/Qwen2.5-0.5B-Instruct")
+reranker.train(rows, output_dir="out/reranker", lora={"r": 16})
+order = reranker.rerank(query_text, candidate_texts)                     # letter-logit reorder
+```
+
+Configs for both scales ship in [`examples/configs/`](examples/configs): `quickstart.yaml` (0.5B, one consumer GPU) and `reproduce_competition.yaml` (Qwen2.5-32B + 4-bit NF4 + LoRA — the medal setup).
+
+## Measured: the competition run
+
+Numbers from the preserved training logs ([`competition/stage1_train.log`](competition/stage1_train.log)) — retriever stage, Qwen2.5-32B-Instruct + LoRA over a 2,587-entry bank, scored on held-out fold:
+
+| metric | value |
+|---|---|
+| MAP@25 | **0.4238** |
+| Recall@1 | 0.3017 |
+| Recall@10 | 0.6906 |
+| Recall@25 | 0.8126 |
+| Recall@50 | 0.8978 |
+| Recall@100 | 0.9391 |
+
+With the listwise reranker on top, the full two-stage system scored **0.50 on the private leaderboard — silver medal, top 5%**. For intuition: Recall@25 of 0.81 means the retriever alone puts the right label among 25 candidates four times out of five — out of 2,587 that all describe subtly different math mistakes.
+
+## How it relates to existing tools
+
+| | sentence-transformers / BGE | RAG over a corpus | `labelbank` |
+|---|---|---|---|
+| Target | open-ended similarity | open document collection | **closed catalog** (can re-embed every eval) |
+| Negatives | in-batch by default | n/a | explicit mined pools, no in-batch |
+| Mining loop | bring your own | n/a | built in, gold-first, iterative |
+| Reranker | cross-encoder (pointwise) | LLM reads retrieved docs | generative **listwise** letters, position-shuffled |
+| Backbone | encoder models | any | any HF causal model as bi-encoder (last-token pool, LoRA, 4-bit) |
+
+If you need general-purpose embeddings, use sentence-transformers. If your labels are a *fixed, fine-grained catalog* and generic embeddings keep confusing siblings, this is the recipe that medaled on exactly that problem.
+
+## Provenance & validation
+
+- The competition scripts, configs, training logs, inference notebook, certificate and the full original write-up are preserved verbatim in [`competition/`](competition/README.md).
+- Golden tests pin the library to the medal-winning code: the contrastive loss, last-token pooling, hard-negative pool construction, both prompt templates, and the Eedi data pipeline are each fuzz-tested against verbatim copies of the originals ([`tests/reference_impl.py`](tests/reference_impl.py)) and assert **identical output** — the library *is* the competition code, not a reimplementation of it.
+- Final result: **silver medal (top 5%)**, private LB 0.50 ([certificate](https://www.kaggle.com/certification/competitions/distiller/eedi-mining-misconceptions-in-mathematics)).
+
+<p align="center">
+  <a href="https://www.kaggle.com/certification/competitions/distiller/eedi-mining-misconceptions-in-mathematics">
+    <img src="https://raw.githubusercontent.com/DaoyuanLi2816/labelbank/main/competition/Certificate.png" alt="Kaggle Eedi silver medal certificate — Daoyuan Li" width="560">
+  </a>
+</p>
+
+## Citation
+
+```bibtex
+@misc{li2024labelbank,
+  author = {Daoyuan Li},
+  title  = {labelbank: retrieval and listwise reranking over closed label banks with self-mined hard negatives},
+  year   = {2024},
+  url    = {https://github.com/DaoyuanLi2816/labelbank},
+  note   = {Generalized from a silver-medal solution, Kaggle Eedi — Mining Misconceptions in Mathematics}
+}
+```
+
+## License
+
+MIT — see [LICENSE](LICENSE).
+
 ## Author
 
-Daoyuan Li - [Kaggle Profile](https://www.kaggle.com/distiller)
-
-For any questions, please contact Daoyuan Li at lidaoyuan2816@gmail.com.
+Daoyuan Li — [Kaggle (distiller)](https://www.kaggle.com/distiller) · lidaoyuan2816@gmail.com
