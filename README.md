@@ -43,7 +43,8 @@ The retriever's top-k candidates are inlined into one prompt as lettered options
 ```bash
 pip install labelbank              # core: metrics, mining, formatting, data (no torch)
 pip install labelbank[retrieve]    # + bi-encoder retrieval (torch, transformers, peft)
-pip install labelbank[train]       # + both training stages (adds trl, datasets)
+pip install labelbank[rerank]      # + the generative listwise reranker (adds trl)
+pip install labelbank[train]       # everything needed to train both stages
 ```
 
 ## 60 seconds
@@ -85,7 +86,14 @@ reranker.train(rows, output_dir="out/reranker", lora={"r": 16})
 order = reranker.rerank(query_text, candidate_texts)                     # letter-logit reorder
 ```
 
-Configs for both scales ship in [`examples/configs/`](examples/configs): `quickstart.yaml` (0.5B, one consumer GPU) and `reproduce_competition.yaml` (Qwen2.5-32B + 4-bit NF4 + LoRA — the medal setup).
+Or run the whole loop — zero-shot eval → rank the bank → mine gold-first pools → retrain → re-evaluate, for `mining_rounds` rounds — from one YAML:
+
+```bash
+python -m labelbank.run --cfg examples/configs/quickstart.yaml             # 0.5B, one consumer GPU
+python -m labelbank.run --cfg examples/configs/reproduce_competition.yaml  # the medal setup (32B + NF4)
+```
+
+The retriever stage writes the adapter, per-split `rankings.parquet` and `metrics.json` to `output_dir`; the reranker stage (`stage: reranker`) consumes that parquet and trains the listwise judge on it.
 
 ## Measured: the competition run
 

@@ -1,36 +1,45 @@
-# The competition configuration (Eedi silver medal): Qwen2.5-32B-Instruct,
-# 4-bit NF4 + LoRA, mined pools of 50. Multi-GPU recommended.
-# Original scripts preserved verbatim under competition/.
+# The competition retriever (Eedi silver medal): Qwen2.5-32B-Instruct,
+# 4-bit NF4 + LoRA, mined pools of 50 (the original v0 config). Multi-GPU
+# recommended; original scripts preserved verbatim under competition/.
+#
+#   python -m labelbank.run --cfg examples/configs/reproduce_competition.yaml
+#
+# The competition iterated mining rounds as separate script runs with a fresh
+# adapter each round; mining_rounds here continues the same adapter instead.
+# For the reranker stage, copy this file with `stage: reranker` and point
+# rankings_path at <output_dir>/rankings.parquet.
 
-model:
-  model_name: "Qwen/Qwen2.5-32B-Instruct"
-  query_max_length: 512
-  label_max_length: 64
-  load_in_4bit: true
-  lora:
-    r: 16
-    alpha: 32
-    dropout: 0.0
-    bias: "none"
-    target_modules: [q_proj, k_proj, v_proj, o_proj, gate_proj, up_proj, down_proj]
+stage: retriever
+output_dir: ./output/eedi-32b
 
-training:
-  epochs: 1
-  batch_size: 4
-  gradient_accumulation_steps: 2
-  lr: 1.0e-4
-  temperature: 0.01
-  one_cycle_pct_start: 0.1
-  seed: 42
+data_format: eedi
+train_path: ./input/eedi-mining-misconceptions-in-mathematics/train_folds.csv
+bank_path: ./input/eedi-mining-misconceptions-in-mathematics/misconception_mapping.csv
+eval_fold: 0
 
-mining:
-  pool_size: 50
-  rounds: 1
-
+model_name: Qwen/Qwen2.5-32B-Instruct
 query_prefix: "<instruct>Given a math question and its incorrect answer, identify the underlying misconception that led to the mistake.\n<query>"
+query_max_length: 512
+label_max_length: 64
+load_in_4bit: true
+dtype: bfloat16
+lora_r: 16
+lora_alpha: 32
+lora_dropout: 0.0
 
-reranker:
-  model_name: "Qwen/Qwen2.5-32B-Instruct"
-  top_k: 5
-  max_seq_length: 1024
-  epochs: 1
+mining_rounds: 1
+pool_size: 50
+epochs: 1
+batch_size: 4
+gradient_accumulation_steps: 2
+lr: 1.0e-4
+temperature: 0.01
+eval_ks: [1, 10, 25, 50, 100]
+map_k: 25
+
+# reranker stage settings (used when stage: reranker)
+rankings_path: ./output/eedi-32b/rankings.parquet
+rerank_k: 5
+candidate_noun: misconception
+rerank_epochs: 1
+max_seq_length: 1024

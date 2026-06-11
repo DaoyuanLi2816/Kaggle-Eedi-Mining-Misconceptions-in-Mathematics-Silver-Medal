@@ -1,26 +1,33 @@
-# Small retriever on one consumer GPU (Qwen2.5-0.5B-Instruct, ungated).
-# Start here; swap model_name up when you have the hardware.
+# Small retriever pipeline on one consumer GPU (Qwen2.5-0.5B-Instruct, ungated):
+#
+#   python -m labelbank.run --cfg examples/configs/quickstart.yaml
+#
+# Point train_path at a csv/parquet of labeled pairs and bank_path at your
+# label catalog. Column names are remapped below. For a zero-setup demo on a
+# public dataset, run examples/mined_negatives_experiment.py instead.
 
-model:
-  model_name: "Qwen/Qwen2.5-0.5B-Instruct"
-  query_max_length: 512
-  label_max_length: 64
-  load_in_4bit: false
-  lora:
-    r: 16
-    alpha: 32
-    dropout: 0.0
-    bias: "none"
+stage: retriever
+output_dir: ./output/quickstart
 
-training:
-  epochs: 1
-  batch_size: 8
-  gradient_accumulation_steps: 2
-  lr: 1.0e-4
-  temperature: 0.01
-  one_cycle_pct_start: 0.1
-  seed: 42
+data_format: generic
+train_path: ./data/train.csv   # columns: utterance (free text), intent (gold label id)
+bank_path: ./data/bank.csv     # columns: intent_id, name
+query_col: utterance
+gold_col: intent
+id_col: intent_id
+text_col: name
+eval_holdout: 0.05
 
-mining:
-  pool_size: 25      # gold + 24 hard negatives per query
-  rounds: 1          # retrain once on self-mined pools
+model_name: Qwen/Qwen2.5-0.5B-Instruct
+query_prefix: "<instruct>Match the text to the best catalog entry.\n<query>"
+query_max_length: 128
+label_max_length: 32
+
+mining_rounds: 2      # rank bank -> mine pools -> retrain, twice
+pool_size: 8          # gold + 7 hard negatives per query
+epochs: 1
+batch_size: 4
+gradient_accumulation_steps: 2
+lr: 1.0e-4
+temperature: 0.01
+eval_ks: [1, 3, 5, 10]
