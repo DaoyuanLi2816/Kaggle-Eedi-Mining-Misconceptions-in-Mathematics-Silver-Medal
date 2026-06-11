@@ -5,7 +5,7 @@
 <div align="center">
 
 [![CI](https://github.com/DaoyuanLi2816/labelbank/actions/workflows/ci.yml/badge.svg)](https://github.com/DaoyuanLi2816/labelbank/actions)
-[![PyPI](https://img.shields.io/pypi/v/labelbank)](https://pypi.org/project/labelbank/)
+[![PyPI](https://img.shields.io/pypi/v/labelbank?cacheSeconds=3600)](https://pypi.org/project/labelbank/)
 ![Python](https://img.shields.io/badge/python-3.9%2B-blue)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 [![Kaggle Silver](https://img.shields.io/badge/Kaggle-Silver%20%C2%B7%20Top%205%25-C0C0C0)](https://www.kaggle.com/certification/competitions/distiller/eedi-mining-misconceptions-in-mathematics)
