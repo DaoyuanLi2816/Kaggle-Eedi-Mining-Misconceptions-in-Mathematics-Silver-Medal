@@ -95,6 +95,27 @@ python -m labelbank.run --cfg examples/configs/reproduce_competition.yaml  # the
 
 The retriever stage writes the adapter, per-split `rankings.parquet` and `metrics.json` to `output_dir`; the reranker stage (`stage: reranker`) consumes that parquet and trains the listwise judge on it.
 
+## Measured: do mined negatives beat random ones?
+
+The library's central claim, measured end to end through its public API on a public dataset — [banking77](https://huggingface.co/datasets/PolyAI/banking77) (a real closed bank of 77 customer intents), Qwen2.5-0.5B-Instruct + LoRA bi-encoder, 2,000 training pairs, 1,000 held-out test queries, pools of 8, one epoch per arm, one RTX 4080, ~1 h ([`examples/mined_negatives_experiment.py`](examples/mined_negatives_experiment.py)):
+
+| arm (identical budgets) | MAP@25 | R@1 | R@3 | R@5 | R@10 |
+|---|---|---|---|---|---|
+| zero-shot backbone | 0.069 | 1.9% | 6.0% | 9.7% | 17.2% |
+| random negatives (bootstrap round) | 0.788 | 67.6% | 87.8% | 94.5% | 97.6% |
+| **+ self-mined, round 1** | **0.838** | **76.2%** | 89.6% | 93.3% | 97.5% |
+| + self-mined, round 2 | 0.839 | 75.7% | **90.5%** | **95.0%** | **97.9%** |
+
+Mining is worth **+5.0 MAP and +8.6 points of R@1** over random negatives at the same budget — and the gain concentrates exactly where fine-grained banks hurt: top-1, where sibling labels collide (R@10 is saturated for both). Round 2 plateaus on this small bank; the competition iterated rounds over a 2,587-entry bank (next section).
+
+One honest caveat the ablation makes measurable: **hard negatives are only as good as the model that mines them.** Mining round 1 from the *zero-shot* model's rankings instead of the bootstrap model's collapses to MAP **0.430** — far below plain random negatives. That is why the pipeline (and the competition protocol preserved in [`competition/`](competition/README.md)) trains a bootstrap round first and mines from it. Reproduce both:
+
+```bash
+pip install -e .[retrieve] datasets
+python examples/mined_negatives_experiment.py               # bootstrap protocol (table above)
+python examples/mined_negatives_experiment.py --cold-start  # the ablation: mine from zero-shot
+```
+
 ## Measured: the competition run
 
 Numbers from the preserved training logs ([`competition/stage1_train.log`](competition/stage1_train.log)) — retriever stage, Qwen2.5-32B-Instruct + LoRA over a 2,587-entry bank, scored on held-out fold:
